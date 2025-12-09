@@ -123,30 +123,21 @@ class RelayV2Handler(tornado.web.RequestHandler):
         self.set_status(204)
         self.finish()
     
-    def _get_backend_url(self, endpoint: Optional[str] = None) -> str:
-        """构建后端 URL
-        
-        Args:
-            endpoint: 可选的端点路径，如果指定则直接使用，否则根据请求路径构建
-        """
+    def _get_backend_url(self) -> str:
+        """构建后端 URL"""
+        path = self.request.path
         query = self.request.query
         
-        if endpoint:
-            # 如果指定了端点，直接拼接到 backend_base_url
+        # 检测 path 中是否包含 v1，如果有则提取 v1 之后的部分
+        if '/v1' in path:
+            # 找到 v1 的位置，提取 v1 之后的路径部分
+            v1_index = path.find('/v1')
+            path_after_v1 = path[v1_index + 3:]  # +3 跳过 '/v1'
+            # 确保 backend_base_url 以 / 结尾时不会产生双斜杠
             base_url = self.config.backend_base_url.rstrip('/')
-            backend_url = f"{base_url}/{endpoint.lstrip('/')}"
+            backend_url = base_url + path_after_v1
         else:
-            path = self.request.path
-            # 检测 path 中是否包含 v1，如果有则提取 v1 之后的部分
-            if '/v1' in path:
-                # 找到 v1 的位置，提取 v1 之后的路径部分
-                v1_index = path.find('/v1')
-                path_after_v1 = path[v1_index + 3:]  # +3 跳过 '/v1'
-                # 确保 backend_base_url 以 / 结尾时不会产生双斜杠
-                base_url = self.config.backend_base_url.rstrip('/')
-                backend_url = base_url + path_after_v1
-            else:
-                backend_url = urljoin(self.config.backend_base_url, path)
+            backend_url = urljoin(self.config.backend_base_url, path)
         
         if query:
             backend_url = f"{backend_url}?{query}"
@@ -579,9 +570,7 @@ class RelayV2Handler(tornado.web.RequestHandler):
     
     async def post(self, *args, **kwargs):
         """处理 POST 请求 - 主要用于创建 response"""
-        backend_url = self._get_backend_url('chat/completions')
-        logger.info(f"v2 self.config.backend_base_url: {self.config.backend_base_url}")
-        logger.info(f"v2 backend_url: {backend_url}")
+        backend_url = self._get_backend_url()
         headers = self._get_backend_headers()
         
         # 解析原始请求

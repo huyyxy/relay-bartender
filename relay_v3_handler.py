@@ -495,7 +495,6 @@ class RelayV3Handler(tornado.web.RequestHandler):
         """代理请求到后端"""
         body = self.request.body
         original_request = {}
-        backend_path = self.request.path
         
         # 解析请求体并检测格式
         if body and method.upper() == 'POST':
@@ -515,7 +514,7 @@ class RelayV3Handler(tornado.web.RequestHandler):
             except json.JSONDecodeError:
                 pass
         
-        backend_url = self._get_backend_url(backend_path)
+        backend_url = self._get_backend_url()
         headers = self._get_backend_headers()
         
         # 检查是否是流式请求
