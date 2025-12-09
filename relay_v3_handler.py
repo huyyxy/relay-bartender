@@ -254,8 +254,12 @@ class RelayV3Handler(tornado.web.RequestHandler):
         
         chat_request['messages'] = messages
         
-        # 直接复制的参数
-        copy_params = ['tools', 'tool_choice', 'temperature', 'top_p', 'stream', 
+        # 转换 tools 格式 (Response API -> Chat Completion API)
+        if 'tools' in request_data:
+            chat_request['tools'] = self._convert_tools_to_chat_completion(request_data['tools'])
+        
+        # 直接复制的参数（不需要格式转换的）
+        copy_params = ['tool_choice', 'temperature', 'top_p', 'stream', 
                        'stop', 'presence_penalty', 'frequency_penalty', 'logit_bias',
                        'user', 'seed', 'response_format', 'parallel_tool_calls']
         for param in copy_params:
@@ -267,6 +271,62 @@ class RelayV3Handler(tornado.web.RequestHandler):
             chat_request['max_tokens'] = request_data['max_output_tokens']
         
         return chat_request
+    
+    def _convert_tools_to_chat_completion(self, tools: list) -> list:
+        """
+        将 Response API 的 tools 格式转换为 Chat Completion API 格式
+        
+        Response API 格式:
+        {
+            "type": "function",
+            "name": "get_weather",
+            "description": "获取天气",
+            "parameters": {...}
+        }
+        
+        Chat Completion API 格式:
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "description": "获取天气",
+                "parameters": {...}
+            }
+        }
+        """
+        if not tools:
+            return tools
+        
+        converted_tools = []
+        for tool in tools:
+            if not isinstance(tool, dict):
+                continue
+            
+            tool_type = tool.get('type', 'function')
+            
+            # 检查是否已经是 Chat Completion 格式（有 function 字段）
+            if 'function' in tool:
+                # 已经是 Chat Completion 格式，直接复制
+                converted_tools.append(tool)
+            elif tool_type == 'function':
+                # Response API 格式，需要转换
+                converted_tool = {
+                    "type": "function",
+                    "function": {
+                        "name": tool.get('name', ''),
+                        "description": tool.get('description', ''),
+                    }
+                }
+                # parameters 可能为空，只有存在时才添加
+                if 'parameters' in tool:
+                    converted_tool['function']['parameters'] = tool['parameters']
+                
+                converted_tools.append(converted_tool)
+            else:
+                # 其他类型的 tool，保持原样
+                converted_tools.append(tool)
+        
+        return converted_tools
     
     def _convert_input_message(self, item: dict) -> Optional[dict]:
         """转换 Response API 的输入消息为 Chat Completion 消息格式"""
@@ -650,9 +710,27 @@ class RelayV3Handler(tornado.web.RequestHandler):
         if response.status_code == 200:
             try:
                 chat_response = response.json()
+                
+                # 打印后端输出（Chat Completion 格式）
+                logger.info(
+                    f"\n{'='*60}\n"
+                    f"🔄 [{self.request_id}] 转换前 - 后端输出 (Chat Completion)\n"
+                    f"{'='*60}\n"
+                    f"{json.dumps(chat_response, ensure_ascii=False, indent=2)}"
+                )
+                
                 response_api_response = self._convert_chat_completion_to_response_api(
                     chat_response, original_request
                 )
+                
+                # 打印前端输出（Response API 格式）
+                logger.info(
+                    f"\n{'='*60}\n"
+                    f"🔄 [{self.request_id}] 转换后 - 前端输出 (Response API)\n"
+                    f"{'='*60}\n"
+                    f"{json.dumps(response_api_response, ensure_ascii=False, indent=2)}"
+                )
+                
                 response_body = json.dumps(response_api_response, ensure_ascii=False).encode('utf-8')
             except (json.JSONDecodeError, Exception) as e:
                 logger.warning(f"响应转换失败，返回原始响应: {e}")
@@ -735,6 +813,22 @@ class RelayV3Handler(tornado.web.RequestHandler):
                                         }]
                                     }
                                 }
+                                
+                                # 流式完成时打印汇总日志
+                                logger.info(
+                                    f"\n{'='*60}\n"
+                                    f"🔄 [{self.request_id}] 流式转换完成前 - 后端累积内容 (Chat Completion)\n"
+                                    f"{'='*60}\n"
+                                    f"累积文本: {accumulated_content}\n"
+                                    f"累积tool_calls: {json.dumps(accumulated_tool_calls, ensure_ascii=False) if accumulated_tool_calls else '无'}"
+                                )
+                                logger.info(
+                                    f"\n{'='*60}\n"
+                                    f"🔄 [{self.request_id}] 流式转换完成后 - 前端输出 (Response API)\n"
+                                    f"{'='*60}\n"
+                                    f"{json.dumps(done_event, ensure_ascii=False, indent=2)}"
+                                )
+                                
                                 sse_data = f"data: {json.dumps(done_event, ensure_ascii=False)}\n\n"
                                 self.write(sse_data)
                                 await self.flush()
@@ -813,6 +907,16 @@ class RelayV3Handler(tornado.web.RequestHandler):
                                     is_first_chunk = False
                                 
                                 events = self._convert_chat_completion_chunk_to_response_events(chunk_data)
+                                
+                                # 打印后端 chunk 和转换后的事件
+                                if events:
+                                    logger.debug(
+                                        f"🔄 [{self.request_id}] 流式转换 - 后端chunk: {json.dumps(chunk_data, ensure_ascii=False)}"
+                                    )
+                                    logger.debug(
+                                        f"🔄 [{self.request_id}] 流式转换 - 前端事件: {json.dumps(events, ensure_ascii=False)}"
+                                    )
+                                
                                 for event in events:
                                     sse_data = f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
                                     self.write(sse_data)

@@ -12,7 +12,7 @@ import tornado.ioloop
 import tornado.web
 
 from health_handler import HealthHandler
-from relay_v3_handler import RelayV3Handler as RelayHandler
+from relay_v3_handler import RelayV4Handler as RelayHandler
 
 # 配置日志
 logging.basicConfig(
