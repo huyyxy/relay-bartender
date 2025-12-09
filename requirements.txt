@@ -1,0 +1,10 @@
+# Relay Bartender 依赖
+
+# Web 框架
+tornado>=6.4
+
+# HTTP 客户端 (支持异步和流式响应)
+httpx>=0.27.0
+
+# 配置文件解析
+PyYAML>=6.0.1

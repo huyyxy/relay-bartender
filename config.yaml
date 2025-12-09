@@ -1,0 +1,34 @@
+# Relay Bartender 配置文件
+
+# 服务器配置
+server:
+  # 监听端口
+  port: 8080
+  # 监听地址 (0.0.0.0 表示监听所有网络接口)
+  host: "0.0.0.0"
+
+# 后端 API 配置
+backend:
+  # 后端 API 的基础 URL
+  base_url: "https://api.openai.com"
+  # 后端 API Key (留空则使用客户端传入的 API Key)
+  api_key: ""
+
+# 模型配置
+model:
+  # 强制覆盖所有请求的模型名称 (留空则不覆盖)
+  # 设置此项后，所有请求都会使用这个模型
+  override: ""
+
+  # 模型名称映射 (当 override 为空时生效)
+  # 格式: 原始模型名 -> 目标模型名
+  mapping:
+    # gpt-4: "gpt-4-turbo"
+    # gpt-3.5-turbo: "gpt-4"
+
+# 请求配置
+request:
+  # 请求超时时间 (秒)
+  timeout: 120
+  # 连接超时时间 (秒)
+  connect_timeout: 30
