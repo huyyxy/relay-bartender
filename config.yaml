@@ -32,3 +32,20 @@ request:
   timeout: 120
   # 连接超时时间 (秒)
   connect_timeout: 30
+
+# 日志配置
+logging:
+  # 是否启用详细日志记录
+  enabled: true
+  # 是否记录请求头
+  request_headers: true
+  # 是否记录请求体
+  request_body: true
+  # 是否记录响应头
+  response_headers: true
+  # 是否记录响应体 (流式响应不记录body，只记录传输字节数)
+  response_body: true
+  # 请求体/响应体最大记录长度 (字符数)
+  max_body_length: 2000
+  # 是否对敏感信息 (如 API Key) 进行脱敏
+  mask_sensitive: true
